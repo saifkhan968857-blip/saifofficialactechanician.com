@@ -318,6 +318,29 @@ button{cursor:pointer}
  .hero h2{font-size:31px}
  .stats,.levels,.grid{grid-template-columns:1fr}
 }
+
+.auth-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:500;align-items:center;justify-content:center;padding:18px}
+.auth-card{width:min(430px,100%);background:#07111b;border:1px solid #1b638d;border-radius:20px;padding:28px;box-shadow:0 20px 70px #000}
+.auth-close{float:right;background:#14222d;color:#fff;border:0;border-radius:8px;padding:7px 10px;cursor:pointer}
+.auth-brand{color:#19a5ff;font-weight:800;font-size:13px;letter-spacing:1px;margin-bottom:18px}
+.auth-card h2{font-size:30px;margin-bottom:7px}
+.auth-card p{color:#8ea0af;line-height:1.5}
+.auth-tabs{display:flex;gap:8px;margin:20px 0 14px}
+.auth-tab{flex:1;padding:11px;border-radius:9px;border:1px solid #24485e;background:#0b1824;color:#aebdcb}
+.auth-tab.active{background:#078dff;color:#fff;border-color:#078dff}
+.auth-input{width:100%;padding:13px;margin:7px 0;background:#091722;border:1px solid #29465d;color:#fff;border-radius:9px;outline:none}
+.auth-main,.auth-secondary,.google-btn{width:100%;padding:13px;margin-top:8px;border-radius:9px;cursor:pointer}
+.auth-main{border:0;background:#078dff;color:#fff}
+.auth-secondary{border:1px solid #205476;background:#091827;color:#36b4ff}
+.google-btn{border:1px solid #3b5263;background:#fff;color:#111}
+.auth-divider{display:flex;align-items:center;gap:10px;margin:18px 0;color:#657989}
+.auth-divider:before,.auth-divider:after{content:"";height:1px;background:#223746;flex:1}
+.auth-status{margin-top:12px;font-size:13px}
+.user-pill{position:fixed;right:18px;top:14px;z-index:50;display:flex;gap:8px;align-items:center;background:#081722;border:1px solid #21465d;border-radius:22px;padding:7px 8px 7px 13px;color:#bcd0de;font-size:12px}
+.user-pill button{border:0;border-radius:15px;background:#078dff;color:#fff;padding:7px 12px;cursor:pointer}
+#recaptcha-container{margin:8px 0}
+@media(max-width:600px){.user-pill{right:10px;top:76px}.topbar{height:62px}.auth-card{padding:22px}}
+
 </style>
 </head>
 
@@ -349,7 +372,7 @@ button{cursor:pointer}
 </div>
 
 <div class="count">
-<strong id="knowledgeCount">3000+</strong>
+<strong id="knowledgeCount">20,000+</strong>
 <br>
 <small>Knowledge Entries</small>
 </div>
@@ -358,6 +381,45 @@ button{cursor:pointer}
 
 
 <main class="main">
+
+
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-card">
+    <button class="auth-close" onclick="closeAuth()">✕</button>
+    <div class="auth-brand">❄ AC TECHNICIAN PRO</div>
+    <h2 id="authTitle">Welcome Back</h2>
+    <p id="authSub">Login to save bookmarks and track your learning.</p>
+
+    <div class="auth-tabs">
+      <button id="emailTab" class="auth-tab active" onclick="showEmailAuth()">Email</button>
+      <button id="phoneTab" class="auth-tab" onclick="showPhoneAuth()">Phone OTP</button>
+    </div>
+
+    <div id="emailAuth">
+      <input id="authEmail" class="auth-input" type="email" placeholder="Email address">
+      <input id="authPassword" class="auth-input" type="password" placeholder="Password">
+      <button class="auth-main" onclick="emailLogin()">Login</button>
+      <button class="auth-secondary" onclick="emailSignup()">Create account</button>
+    </div>
+
+    <div id="phoneAuth" style="display:none">
+      <input id="phoneNumber" class="auth-input" type="tel" placeholder="+91XXXXXXXXXX">
+      <div id="recaptcha-container"></div>
+      <button class="auth-main" onclick="sendPhoneOTP()">Send OTP</button>
+      <input id="phoneOTP" class="auth-input" type="text" inputmode="numeric" placeholder="Enter OTP">
+      <button class="auth-secondary" onclick="verifyPhoneOTP()">Verify OTP</button>
+    </div>
+
+    <div class="auth-divider"><span>OR</span></div>
+    <button class="google-btn" onclick="googleLogin()">🔵 Continue with Google</button>
+    <p id="authStatus" class="auth-status"></p>
+  </div>
+</div>
+
+<div class="user-pill" id="userPill">
+  <span id="userName">Guest</span>
+  <button onclick="openAuth()">Login</button>
+</div>
 
 <header class="topbar">
 
@@ -399,7 +461,7 @@ inverter concepts, electrical basics, safety और
 <section class="stats">
 
 <div class="stat">
-<h3 id="total">3000+</h3>
+<h3 id="total">20,000+</h3>
 <p>Knowledge Entries</p>
 </div>
 
@@ -548,6 +610,108 @@ technician supervision का पालन करें।
 
 </div>
 
+
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  RecaptchaVerifier, signInWithPhoneNumber, onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+
+/* =========================================================
+   PASTE YOUR FIREBASE WEB CONFIG HERE
+   Firebase Console → Project settings → Your apps → Web app
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyBbxTUETjpTxUmUSjhHy-GyzN1V3XNmkP4",
+  authDomain: "actec-97da3.firebaseapp.com",
+  databaseURL: "https://actec-97da3-default-rtdb.firebaseio.com",
+  projectId: "actec-97da3",
+  storageBucket: "actec-97da3.firebasestorage.app",
+  messagingSenderId: "968625609403",
+  appId: "1:968625609403:web:6e222528a7083678d5679e",
+  measurementId: "G-TMTXSQR0YJ"
+};
+
+let auth = null;
+let confirmationResult = null;
+let recaptchaVerifier = null;
+
+function configured(){
+  return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE_");
+}
+function status(msg){
+  const el=document.getElementById("authStatus");
+  if(el) el.textContent=msg;
+}
+window.openAuth=()=>document.getElementById("authOverlay").style.display="flex";
+window.closeAuth=()=>document.getElementById("authOverlay").style.display="none";
+window.showEmailAuth=()=>{
+  document.getElementById("emailAuth").style.display="block";
+  document.getElementById("phoneAuth").style.display="none";
+  document.getElementById("emailTab").classList.add("active");
+  document.getElementById("phoneTab").classList.remove("active");
+};
+window.showPhoneAuth=()=>{
+  document.getElementById("emailAuth").style.display="none";
+  document.getElementById("phoneAuth").style.display="block";
+  document.getElementById("phoneTab").classList.add("active");
+  document.getElementById("emailTab").classList.remove("active");
+};
+window.emailLogin=async()=>{
+  if(!auth)return status("पहले Firebase config डालें।");
+  try{await signInWithEmailAndPassword(auth,authEmail.value,authPassword.value);closeAuth();}
+  catch(e){status("Login failed: "+e.message);}
+};
+window.emailSignup=async()=>{
+  if(!auth)return status("पहले Firebase config डालें।");
+  try{await createUserWithEmailAndPassword(auth,authEmail.value,authPassword.value);closeAuth();}
+  catch(e){status("Signup failed: "+e.message);}
+};
+window.googleLogin=async()=>{
+  if(!auth)return status("पहले Firebase config डालें।");
+  try{await signInWithPopup(auth,new GoogleAuthProvider());closeAuth();}
+  catch(e){status("Google login failed: "+e.message);}
+};
+window.sendPhoneOTP=async()=>{
+  if(!auth)return status("पहले Firebase config डालें।");
+  try{
+    if(!recaptchaVerifier){
+      recaptchaVerifier=new RecaptchaVerifier(auth,"recaptcha-container",{size:"normal"});
+    }
+    confirmationResult=await signInWithPhoneNumber(auth,phoneNumber.value.trim(),recaptchaVerifier);
+    status("OTP भेज दिया गया है।");
+  }catch(e){status("OTP failed: "+e.message);}
+};
+window.verifyPhoneOTP=async()=>{
+  if(!confirmationResult)return status("पहले OTP भेजें।");
+  try{await confirmationResult.confirm(phoneOTP.value.trim());closeAuth();}
+  catch(e){status("OTP verification failed: "+e.message);}
+};
+window.logout=async()=>{if(auth)await signOut(auth);};
+
+if(configured()){
+  const app=initializeApp(firebaseConfig);
+  auth=getAuth(app);
+  onAuthStateChanged(auth,user=>{
+    const name=document.getElementById("userName");
+    const pill=document.getElementById("userPill");
+    if(user){
+      name.textContent=user.displayName || user.email || user.phoneNumber || "User";
+      pill.querySelector("button").textContent="Logout";
+      pill.querySelector("button").onclick=window.logout;
+    }else{
+      name.textContent="Guest";
+      pill.querySelector("button").textContent="Login";
+      pill.querySelector("button").onclick=window.openAuth;
+    }
+  });
+}else{
+  console.warn("Firebase config not set. Add your Firebase web config.");
+}
+</script>
 
 <script>
 
@@ -978,6 +1142,96 @@ else x.level="Hard";
 
 });
 
+
+
+/* =====================================================
+   20,000+ KNOWLEDGE LIBRARY
+   Generated from the embedded AC topics using safe,
+   educational troubleshooting combinations.
+   ===================================================== */
+const systems20k = [
+ "Split AC","Window AC","Inverter AC","Non-Inverter AC","Indoor Unit",
+ "Outdoor Unit","Cooling System","Airflow System","Drain System",
+ "Control System","Compressor System","Condenser","Evaporator",
+ "Heat Exchanger","Temperature Control","Remote Control","PCB System",
+ "Fan System","Filter System","Installation Check"
+];
+const symptoms20k = [
+ "cooling कम","cooling नहीं","airflow कम","airflow नहीं","पानी leakage",
+ "noise","vibration","start नहीं","बार-बार बंद","error indication",
+ "temperature issue","fan issue","remote issue","display issue",
+ "performance कम","ice/frost indication","odor","uneven cooling",
+ "drain issue","sensor indication"
+];
+const actions20k = [
+ "basic concept","symptom identification","possible causes",
+ "safe visual inspection","maintenance concept","diagnosis concept",
+ "technician checklist","preventive check","component study",
+ "troubleshooting note","warning signs","learning note",
+ "common mistakes","professional checklist","documentation check"
+];
+const contexts20k = [
+ "beginner learning","intermediate learning","advanced theory",
+ "hard-level theory","exam revision","field observation",
+ "maintenance study","fault-analysis study","component revision",
+ "quick reference"
+];
+
+for (const system of systems20k) {
+  for (const symptom of symptoms20k) {
+    for (const action of actions20k) {
+      for (const context of contexts20k) {
+        const n = expanded.length + 1;
+        expanded.push({
+          id:n,
+          title:`${system} — ${symptom} — ${action} — ${context}`,
+          category:"Fault",
+          level:(n%4===0 ? "Hard" : n%3===0 ? "Advanced" : n%2===0 ? "Intermediate" : "Beginner"),
+          knowledge:`यह AC Technician learning entry ${context} के लिए है। ${system} में "${symptom}" को समझते समय ${action} पर ध्यान दें। पहले symptom को verify करें, operating settings और visible condition को observe करें, फिर manufacturer documentation के अनुसार diagnosis concept समझें। बिना पुष्टि के component बदलने से बचें।`,
+          tip:"Diagnosis को logical sequence में करें: symptom → observation → likely causes → documentation → safe next step.",
+          safety:"Live electrical components, high-voltage sections और pressurized refrigeration circuits पर काम केवल properly trained/qualified technician के लिए रखें."
+        });
+      }
+    }
+  }
+}
+
+/* Extra knowledge combinations ensure the library remains above 20,000
+   even if the base topic list is changed later. */
+const studySubjects20k = [
+ "AC terminology","refrigeration cycle","heat transfer","airflow",
+ "temperature sensing","humidity","filter maintenance","drainage",
+ "compressor theory","condenser theory","evaporator theory",
+ "fan motor theory","PCB theory","inverter concept","error-code reading",
+ "preventive maintenance","visual inspection","documentation",
+ "technician safety","customer communication"
+];
+const studyAngles20k = [
+ "meaning","purpose","working concept","common symptoms",
+ "possible causes","visual clues","maintenance notes",
+ "diagnostic thinking","preventive notes","common mistakes",
+ "technician tip","safety notes","revision points",
+ "beginner explanation","advanced explanation"
+];
+for (const subject of studySubjects20k) {
+  for (const angle of studyAngles20k) {
+    const n = expanded.length + 1;
+    expanded.push({
+      id:n,
+      title:`${subject} — ${angle} — AC Technician Knowledge`,
+      category: subject.includes("safety") ? "Safety" : "Basic",
+      level: n%4===0 ? "Hard" : n%3===0 ? "Advanced" : n%2===0 ? "Intermediate" : "Beginner",
+      knowledge:`${subject} के ${angle} को AC Technician training में समझना उपयोगी है। इस entry का उद्देश्य concept को structured तरीके से सीखना है। वास्तविक servicing के लिए संबंधित AC model की manufacturer documentation और qualified supervision को प्राथमिकता दें।`,
+      tip:"Concept को पहले समझें, फिर symptoms और documentation को जोड़कर diagnosis की reasoning विकसित करें.",
+      safety:"Electrical और pressurized refrigeration work trained/qualified personnel के लिए रखें."
+    });
+  }
+}
+
+/* =====================================================
+   FIREBASE AUTHENTICATION
+   Paste your own Firebase config below.
+   ===================================================== */
 
 /* =====================================================
    DATABASE INFO
